@@ -8,3 +8,5 @@ Pillow
 geopy
 qrcode
 openpyxl
+streamlit-autorefresh
+
