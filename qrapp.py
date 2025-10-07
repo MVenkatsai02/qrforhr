@@ -11,11 +11,12 @@ from PIL import Image
 from cryptography.fernet import Fernet
 from geopy.distance import geodesic
 from streamlit_geolocation import streamlit_geolocation
+from streamlit_autorefresh import st_autorefresh
 import qrcode
 
 # ---------- CONFIG ----------
 IST = timezone("Asia/Kolkata")
-OFFICE_LAT, OFFICE_LON = 17.434059257137925, 78.37883225744869  
+OFFICE_LAT, OFFICE_LON = 17.434059257137925, 78.37883225744869
 MAX_DISTANCE_KM = 0.3
 
 DB_FILE = "attendance.db"
@@ -27,7 +28,7 @@ os.makedirs(SECURE_DIR, exist_ok=True)
 os.makedirs(QR_DIR, exist_ok=True)
 os.makedirs(LOG_DIR, exist_ok=True)
 
-# Load secrets
+# ---------- SECRETS ----------
 HR_PASSWORD_HASH = os.getenv("HR_PASSWORD_HASH", st.secrets.get("HR_PASSWORD_HASH"))
 FERNET_KEY = os.getenv("ENCRYPTION_KEY", st.secrets.get("ENCRYPTION_KEY"))
 fernet = Fernet(FERNET_KEY.encode() if isinstance(FERNET_KEY, str) else FERNET_KEY)
@@ -52,6 +53,8 @@ def init_db():
 
 init_db()
 
+
+# ---------- ATTENDANCE FUNCTIONS ----------
 def record_login(emp_id, name, date):
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
@@ -61,6 +64,7 @@ def record_login(emp_id, name, date):
     conn.commit()
     conn.close()
     return login_time
+
 
 def record_logout(emp_id, date):
     conn = sqlite3.connect(DB_FILE)
@@ -77,12 +81,6 @@ def record_logout(emp_id, date):
     conn.close()
     return logout_time, hours
 
-def get_today_records():
-    conn = sqlite3.connect(DB_FILE)
-    today = datetime.now(IST).strftime("%Y-%m-%d")
-    df = pd.read_sql(f"SELECT * FROM attendance WHERE date='{today}'", conn)
-    conn.close()
-    return df
 
 def get_records_by_date(date):
     conn = sqlite3.connect(DB_FILE)
@@ -90,11 +88,13 @@ def get_records_by_date(date):
     conn.close()
     return df
 
+
 def get_employee_history(emp_id):
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql(f"SELECT * FROM attendance WHERE emp_id='{emp_id}' ORDER BY date DESC", conn)
     conn.close()
     return df
+
 
 # ---------- LOCATION ----------
 def get_user_location():
@@ -107,9 +107,11 @@ def get_user_location():
     st.info("Please allow location access.")
     return None
 
+
 def within_office(lat, lon, radius_km=MAX_DISTANCE_KM):
     dist = geodesic((lat, lon), (OFFICE_LAT, OFFICE_LON)).km
     return dist <= radius_km, round(dist, 3)
+
 
 # ---------- EMPLOYEE FILE HANDLING ----------
 EMP_FILE_PATH = os.path.join(SECURE_DIR, "employees.enc")
@@ -120,6 +122,7 @@ def encrypt_and_save(df):
     with open(EMP_FILE_PATH, "wb") as f:
         f.write(encrypted)
 
+
 def decrypt_and_load():
     if not os.path.exists(EMP_FILE_PATH):
         return None
@@ -127,11 +130,11 @@ def decrypt_and_load():
         decrypted = fernet.decrypt(f.read()).decode()
     return pd.read_csv(io.StringIO(decrypted))
 
+
 # ---------- DAILY TOKEN SYSTEM ----------
 TOKEN_FILE = os.path.join(SECURE_DIR, "daily_token.txt")
 
 def generate_daily_token():
-    """Generate or reuse today's secure token"""
     today = datetime.now(IST).strftime("%Y-%m-%d")
     if os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, "r") as f:
@@ -145,8 +148,8 @@ def generate_daily_token():
         f.write(f"{today}|{new_token}")
     return new_token
 
+
 def get_today_token():
-    """Read today's token from file"""
     if not os.path.exists(TOKEN_FILE):
         return None
     with open(TOKEN_FILE, "r") as f:
@@ -157,19 +160,18 @@ def get_today_token():
                 return saved_token
     return None
 
+
 # ---------- QR GENERATION ----------
 def generate_qr():
     today = datetime.now(IST).strftime("%Y-%m-%d")
     qr_path = os.path.join(QR_DIR, f"qr_{today}.png")
-
-    # Get or create today's secure token
     token = generate_daily_token()
     base_url = st.secrets.get("BASE_URL", "https://qrforlogs.streamlit.app/")
     qr_link = f"{base_url}?token={token}"
-
     qr = qrcode.make(qr_link)
     qr.save(qr_path)
     return qr_path, qr_link
+
 
 # ---------- UI START ----------
 st.set_page_config(page_title="QR Attendance System", page_icon="📌")
@@ -186,11 +188,11 @@ st.title("📌 QR Attendance System with Location Validation (IST)")
 
 role = st.sidebar.radio("Select Mode", ["Employee", "HR/Admin", "QR Display"])
 
+
 # ---------- EMPLOYEE MODE ----------
 if role == "Employee":
     st.subheader("Employee Attendance Portal")
 
-    # Validate secure daily token
     query_params = st.query_params
     token = query_params.get("token")
     valid_token = get_today_token()
@@ -243,6 +245,7 @@ if role == "Employee":
             else:
                 st.error("❌ Wrong password.")
 
+
 # ---------- HR / ADMIN MODE ----------
 elif role == "HR/Admin":
     st.subheader("HR Dashboard")
@@ -292,17 +295,19 @@ elif role == "HR/Admin":
                 qr_path, qr_link = generate_qr()
                 st.image(qr_path, caption="Today's Secure QR", width=200)
                 st.caption(f"🔗 QR Link (for testing): {qr_link}")
-            if os.path.exists(os.path.join(LOG_DIR, "hr_audit.txt")):
-                with open(os.path.join(LOG_DIR, "hr_audit.txt")) as f:
-                    st.text(f.read())
 
     elif pw:
         st.error("Invalid HR password")
 
-# ---------- QR DISPLAY MODE ----------
+
+# ---------- QR DISPLAY MODE (Auto-refresh every 30s) ----------
 else:
     st.subheader("QR Display Mode")
+
+    # Auto-refresh every 30 seconds to reflect any HR updates
+    st_autorefresh(interval=30 * 1000, key="qr_auto_refresh")
+
     qr_path, _ = generate_qr()
     st.image(qr_path, caption="Today's Attendance QR", width=300)
     st.info("Employees can scan this QR to open the app and mark attendance.")
-
+    st.caption("🔁 This QR display automatically updates every 30 seconds if HR generates a new QR.")
