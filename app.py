@@ -14,7 +14,7 @@ import qrcode
 
 # ---------- CONFIG ----------
 IST = timezone("Asia/Kolkata")
-OFFICE_LAT, OFFICE_LON = 17.443387, 78.348673  # T-Hub Hyderabad
+OFFICE_LAT, OFFICE_LON = 17.434734830490676, 78.37918630903165
 MAX_DISTANCE_KM = 0.1
 
 DB_FILE = "attendance.db"
