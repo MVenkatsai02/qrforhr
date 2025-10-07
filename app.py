@@ -14,8 +14,8 @@ import qrcode
 
 # ---------- CONFIG ----------
 IST = timezone("Asia/Kolkata")
-OFFICE_LAT, OFFICE_LON = 17.434059257137925, 78.37883225744869
-MAX_DISTANCE_KM = 0.1
+OFFICE_LAT, OFFICE_LON = 17.434059257137925, 78.37883225744869  
+MAX_DISTANCE_KM = 0.5
 
 DB_FILE = "attendance.db"
 SECURE_DIR = "secure_data"
