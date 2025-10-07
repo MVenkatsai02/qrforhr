@@ -130,7 +130,7 @@ def decrypt_and_load():
 def generate_qr():
     today = datetime.now(IST).strftime("%Y-%m-%d")
     qr_path = os.path.join(QR_DIR, f"qr_{today}.png")
-    base_url = st.secrets.get("BASE_URL", "https://qrforhr.streamlit.app/")
+    base_url = st.secrets.get("BASE_URL", "https://qrforlogs.streamlit.app/")
     qr = qrcode.make(f"{base_url}?date={today}")
     qr.save(qr_path)
     return qr_path
