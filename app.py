@@ -143,7 +143,7 @@ col1, col2 = st.columns([1, 5])
 with col1:
     st.image("logo.png", width=70)
 with col2:
-    st.markdown("### **ArcForce Technologies Pvt Ltd**")
+    st.markdown("### **TW**")
 
 st.title("📌 QR Attendance System with Location Validation (IST)")
 
