@@ -166,7 +166,7 @@ def generate_qr():
     today = datetime.now(IST).strftime("%Y-%m-%d")
     qr_path = os.path.join(QR_DIR, f"qr_{today}.png")
     token = generate_daily_token()
-    base_url = st.secrets.get("BASE_URL", "https://qrforlogs.streamlit.app/")
+    base_url = st.secrets.get("BASE_URL", "https://qrlogs.streamlit.app/")
     qr_link = f"{base_url}?token={token}"
     qr = qrcode.make(qr_link)
     qr.save(qr_path)
