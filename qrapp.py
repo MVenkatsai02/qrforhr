@@ -53,7 +53,6 @@ def init_db():
 
 init_db()
 
-
 # ---------- ATTENDANCE FUNCTIONS ----------
 def record_login(emp_id, name, date):
     conn = sqlite3.connect(DB_FILE)
@@ -64,7 +63,6 @@ def record_login(emp_id, name, date):
     conn.commit()
     conn.close()
     return login_time
-
 
 def record_logout(emp_id, date):
     conn = sqlite3.connect(DB_FILE)
@@ -81,20 +79,17 @@ def record_logout(emp_id, date):
     conn.close()
     return logout_time, hours
 
-
 def get_records_by_date(date):
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql(f"SELECT * FROM attendance WHERE date='{date}'", conn)
     conn.close()
     return df
 
-
 def get_employee_history(emp_id):
     conn = sqlite3.connect(DB_FILE)
     df = pd.read_sql(f"SELECT * FROM attendance WHERE emp_id='{emp_id}' ORDER BY date DESC", conn)
     conn.close()
     return df
-
 
 # ---------- LOCATION ----------
 def get_user_location():
@@ -107,11 +102,9 @@ def get_user_location():
     st.info("Please allow location access.")
     return None
 
-
 def within_office(lat, lon, radius_km=MAX_DISTANCE_KM):
     dist = geodesic((lat, lon), (OFFICE_LAT, OFFICE_LON)).km
     return dist <= radius_km, round(dist, 3)
-
 
 # ---------- EMPLOYEE FILE HANDLING ----------
 EMP_FILE_PATH = os.path.join(SECURE_DIR, "employees.enc")
@@ -122,7 +115,6 @@ def encrypt_and_save(df):
     with open(EMP_FILE_PATH, "wb") as f:
         f.write(encrypted)
 
-
 def decrypt_and_load():
     if not os.path.exists(EMP_FILE_PATH):
         return None
@@ -130,26 +122,27 @@ def decrypt_and_load():
         decrypted = fernet.decrypt(f.read()).decode()
     return pd.read_csv(io.StringIO(decrypted))
 
-
 # ---------- DAILY TOKEN SYSTEM ----------
 TOKEN_FILE = os.path.join(SECURE_DIR, "daily_token.txt")
 
-def generate_daily_token():
+def generate_daily_token(force_new=False):
+    """Generate new token daily or when HR forces refresh"""
     today = datetime.now(IST).strftime("%Y-%m-%d")
-    if os.path.exists(TOKEN_FILE):
+    if not force_new and os.path.exists(TOKEN_FILE):
         with open(TOKEN_FILE, "r") as f:
             data = f.read().strip().split("|")
             if len(data) == 2:
                 saved_date, saved_token = data
                 if saved_date == today:
                     return saved_token
+    # generate new token if forced or new day
     new_token = secrets.token_hex(16)
     with open(TOKEN_FILE, "w") as f:
         f.write(f"{today}|{new_token}")
     return new_token
 
-
 def get_today_token():
+    """Retrieve today's valid token"""
     if not os.path.exists(TOKEN_FILE):
         return None
     with open(TOKEN_FILE, "r") as f:
@@ -160,18 +153,16 @@ def get_today_token():
                 return saved_token
     return None
 
-
 # ---------- QR GENERATION ----------
-def generate_qr():
+def generate_qr(force_new=False):
     today = datetime.now(IST).strftime("%Y-%m-%d")
     qr_path = os.path.join(QR_DIR, f"qr_{today}.png")
-    token = generate_daily_token()
+    token = generate_daily_token(force_new)
     base_url = st.secrets.get("BASE_URL", "https://qrlogs.streamlit.app/")
     qr_link = f"{base_url}?token={token}"
     qr = qrcode.make(qr_link)
     qr.save(qr_path)
     return qr_path, qr_link
-
 
 # ---------- UI START ----------
 st.set_page_config(page_title="QR Attendance System", page_icon="📌")
@@ -187,7 +178,6 @@ with col2:
 st.title("📌 QR Attendance System with Location Validation (IST)")
 
 role = st.sidebar.radio("Select Mode", ["Employee", "HR/Admin", "QR Display"])
-
 
 # ---------- EMPLOYEE MODE ----------
 if role == "Employee":
@@ -237,14 +227,12 @@ if role == "Employee":
                             st.success(f"🕒 Logout recorded at {logout} | Worked {hrs} hrs")
                         else:
                             st.warning("⚠️ You already logged out today.")
-
                         hist = get_employee_history(emp_id)
                         if not hist.empty:
                             st.write("### Your Last 7 Days Attendance")
                             st.dataframe(hist.head(7)[["date", "login_time", "logout_time", "hours_worked"]])
             else:
                 st.error("❌ Wrong password.")
-
 
 # ---------- HR / ADMIN MODE ----------
 elif role == "HR/Admin":
@@ -291,23 +279,19 @@ elif role == "HR/Admin":
 
         # --- Tab 4: System Controls ---
         with tabs[3]:
-            if st.button("Generate New QR"):
-                qr_path, qr_link = generate_qr()
-                st.image(qr_path, caption="Today's Secure QR", width=200)
+            if st.button("Generate New QR (Force Refresh)"):
+                qr_path, qr_link = generate_qr(force_new=True)
+                st.image(qr_path, caption="New Secure QR Generated", width=200)
                 st.caption(f"🔗 QR Link (for testing): {qr_link}")
 
     elif pw:
         st.error("Invalid HR password")
 
-
 # ---------- QR DISPLAY MODE (Auto-refresh every 30s) ----------
 else:
     st.subheader("QR Display Mode")
-
-    # Auto-refresh every 30 seconds to reflect any HR updates
     st_autorefresh(interval=30 * 1000, key="qr_auto_refresh")
-
     qr_path, _ = generate_qr()
     st.image(qr_path, caption="Today's Attendance QR", width=300)
     st.info("Employees can scan this QR to open the app and mark attendance.")
-    st.caption("🔁 This QR display automatically updates every 30 seconds if HR generates a new QR.")
+    st.caption("🔁 This QR display auto-updates every 30 seconds if HR regenerates a new QR.")
