@@ -1,0 +1,9 @@
+streamlit
+streamlit-geolocation
+pandas
+bcrypt
+cryptography
+pytz
+Pillow
+geopy
+qrcode

@@ -1,0 +1,13 @@
+# Ignore runtime/sensitive data
+attendance.db
+secure_data/
+qrcodes/
+logs/
+__pycache__/
+*.pyc
+.env
+employees.xlsx
+employees_secure.xlsx
+employees.enc
+venv/
+venv
